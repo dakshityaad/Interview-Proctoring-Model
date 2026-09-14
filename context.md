@@ -55,3 +55,12 @@
 	not indicate a failure.
 - The recommended command is:
 	`.\.venv312\Scripts\python.exe src\landmarks\face_mesh.py`
+
+## Version 0.0.4
+
+- Added iris-marker and gaze-position overlays plus head-pose axes to
+	`src/landmarks/face_mesh.py`.
+- Reduced visible eye-tracking latency by limiting the webcam capture buffer to one frame.
+- Corrected the MediaPipe Tasks VIDEO-mode timestamp to use elapsed milliseconds instead of
+	a 1 ms-per-loop counter, preserving strictly increasing real-time timestamps for tracking.
+- Verified the updated face-mesh script with `py_compile`.
