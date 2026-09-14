@@ -182,23 +182,35 @@ Streamlit UI: live video panel + rolling score chart + alert banner
 ```
 reading-detector/
 │
+├── configs/
+│   └── config.yaml                # window size, stride, thresholds, paths,
+│                                   #   per-model hyperparameters — no
+│                                   #   hardcoded values in scripts
+│
 ├── data/
-│   ├── raw/                  # raw recorded video clips, per subject/class
-│   ├── frames/               # extracted frames (if needed for inspection)
-│   └── features.csv          # extracted [pitch, yaw, gaze_ratio, label, subject_id, window_id]
+│   ├── raw/                       # raw recorded video clips, per subject/class
+│   │                              #   (git-ignored — not committed to the repo)
+│   ├── frames/                    # extracted frames (if needed for inspection)
+│   └── features.csv               # extracted [pitch, yaw, gaze_ratio, label, subject_id, window_id]
 │
 ├── src/
+│   ├── __init__.py
 │   ├── capture/
+│   │   ├── __init__.py
 │   │   └── webcam_stream.py       # local/offline camera capture loop (used for data collection)
 │   ├── landmarks/
+│   │   ├── __init__.py
 │   │   ├── face_mesh.py           # MediaPipe FaceMesh wrapper
 │   │   ├── head_pose.py           # pitch/yaw estimation (solvePnP)
 │   │   └── gaze.py                # iris/gaze ratio estimation
 │   ├── features/
+│   │   ├── __init__.py
 │   │   └── extract_features.py    # video -> per-frame feature extraction
 │   ├── windowing/
+│   │   ├── __init__.py
 │   │   └── make_windows.py        # slice feature sequences into labeled windows
 │   ├── model/
+│   │   ├── __init__.py
 │   │   ├── dataset.py             # loads windows into train/val/test splits
 │   │   ├── cnn_model.py           # Version 1: 1D-CNN architecture (3-class softmax)
 │   │   ├── dnn_model.py           # Version 2: deeper fully-connected network (DNN)
@@ -206,12 +218,28 @@ reading-detector/
 │   │   ├── train.py               # training loop (shared across all 3 models)
 │   │   └── infer.py               # loads trained weights, runs inference on a window
 │   └── scoring/
+│       ├── __init__.py
 │       └── rolling_score.py       # rolling window smoothing + alert logic
+│
+├── scripts/
+│   ├── run_extraction.py          # entry point: data/raw/ -> features.csv
+│   ├── run_training.py            # entry point: trains a chosen model (cnn/dnn/ann)
+│   └── run_evaluation.py          # entry point: evaluates a trained model on the
+│                                   #   held-out test subject, writes to results/
 │
 ├── models/
 │   ├── cnn_classifier.pt          # Version 1 saved weights
 │   ├── dnn_classifier.pt          # Version 2 saved weights
 │   └── ann_classifier.pt          # Version 2 saved weights
+│
+├── results/
+│   ├── cnn/                       # confusion matrix, metrics, training curves
+│   ├── dnn/
+│   └── ann/
+│
+├── tests/
+│   ├── test_landmarks.py          # sanity checks on head_pose/gaze functions
+│   └── test_windowing.py          # sanity checks on window-slicing logic
 │
 ├── notebooks/
 │   └── exploration.ipynb          # data checks, threshold/architecture experiments
@@ -221,9 +249,26 @@ reading-detector/
 │   └── video_processor.py         # streamlit-webrtc VideoProcessor: per-frame
 │                                   #   FaceMesh -> window -> model -> overlay
 │
+├── .gitignore                     # excludes data/raw/, venv/, __pycache__/, etc.
 ├── requirements.txt
 └── README.md                      # this file
 ```
+
+**What changed from the earlier version, and why:**
+- **`configs/`** — centralizes window size, stride, alert thresholds, and
+  file paths in one `config.yaml` instead of hardcoded values scattered
+  across scripts, and makes running 3 different model configs cleaner.
+- **`scripts/`** — clear, runnable entry points, so "how do I actually run
+  this" doesn't require reading through `src/` to figure out.
+- **`results/`** — a dedicated home per model for confusion matrices,
+  metrics, and training curves, since the Phase 2 deliverable is
+  explicitly a 3-model comparison.
+- **`tests/`** — a few sanity checks (not a full test suite) to catch
+  breakage in the landmark/windowing logic early.
+- **`__init__.py` files** — turns `src/` into a proper importable package,
+  avoiding import path issues once scripts start importing across folders.
+- **`.gitignore`** — keeps raw video footage (identifiable footage of real
+  people) and environment files out of the committed repo.
 
 ---
 
