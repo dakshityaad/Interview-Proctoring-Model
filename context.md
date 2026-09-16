@@ -64,3 +64,19 @@
 - Corrected the MediaPipe Tasks VIDEO-mode timestamp to use elapsed milliseconds instead of
 	a 1 ms-per-loop counter, preserving strictly increasing real-time timestamps for tracking.
 - Verified the updated face-mesh script with `py_compile`.
+
+## Version 0.0.5
+
+- Moved iris-center and eye-corner gaze-ratio calculation into
+	`src/landmarks/gaze.py` as `get_gaze_ratio(landmarks, frame_width, frame_height)`.
+- Kept head-pose estimation in `src/landmarks/head_pose.py` and updated the face-mesh
+	overlay to call the separate gaze and head-pose modules.
+- Added `tests/test_gaze.py` to verify that gaze ratios remain unchanged when the projected
+	face scale is reduced, representing a face farther from the camera.
+- Added explanatory comments to `src/landmarks/face_mesh.py` and `src/landmarks/gaze.py`
+	covering the MediaPipe pipeline, backend selection, normalized coordinates, and scale
+	invariance.
+- Verified `face_mesh.py` and `gaze.py` with `py_compile`; the gaze regression test passed
+	with `unittest`; editor diagnostics reported no errors.
+- Started the live webcam demo successfully and confirmed MediaPipe initialized. Exact
+	pitch/yaw/gaze before-and-after numeric comparison was not recorded.
