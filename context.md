@@ -177,3 +177,44 @@ were implemented through creation of the combined feature CSV.
 - Added explanatory comments and docstrings following the style of `src/landmarks/head_pose.py`.
 - Verified imports, CLI help, compilation, diagnostics, whitespace, and tests: `1 passed`.
 - The extraction CLI completed with exit code 0 and normal MediaPipe startup messages. CSV population, class counts, and frame-gap sanity checks are the next verification step.
+
+## Version 0.1.0
+
+**Note:** The first end-to-end CNN training pipeline was implemented and
+validated on the extracted feature data.
+
+### Current Files
+
+- `src/windowing/make_windows.py` - Loads the feature CSV and creates labeled,
+	 subject/class-safe temporal windows.
+- `src/model/cnn_model.py` - Defines the 1D CNN classifier for temporal face
+	 features.
+- `src/model/train.py` - Provides the training loop, validation tracking, and
+	 model checkpoint saving.
+- `scripts/run_training.py` - CLI entry point for subject-level CNN training.
+- `models/cnn_classifier.pt` - Trained CNN weights for the default training run.
+- `results/cnn/cnn_classifier_subject02.pt` - CNN weights from the
+	 `SUBJECT_02` held-out validation run.
+
+### Action Log
+
+- Implemented temporal window loading and slicing using the configured window
+	 size of `60` frames and stride of `10` frames.
+- Ensured windows do not cross subject/class recording boundaries.
+- Implemented a 1D CNN with three convolutional layers, ReLU activations,
+	 max-pooling, adaptive average pooling, dense layers, and three-class softmax
+	 output.
+- Implemented the forward/backward training loop with Adam optimization,
+	 validation loss, and validation accuracy tracking.
+- Implemented checkpoint saving to `models/cnn_classifier.pt`.
+- Added CLI options for feature CSV path, model path, held-out subject, epochs,
+	 batch size, and learning rate.
+- Trained the CNN end to end using the real feature CSV. With `SUBJECT_03`
+	 held out, training loss decreased from `0.7084` to `0.1830` and validation
+	 accuracy reached `65.30%`.
+- Evaluated a separate `SUBJECT_02` held-out fold. Training loss decreased from
+	 `0.5943` to `0.2240` and validation accuracy reached `55.08%`.
+- Confirmed the new Python modules compile successfully and the existing gaze
+	 regression test passes.
+- Confirmed the `.pt` checkpoint is a valid binary PyTorch file; it begins with
+	 `PK` because PyTorch stores checkpoints in a ZIP-based format.
