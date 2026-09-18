@@ -13,6 +13,7 @@ import time
 # MediaPipe face-mesh pipeline and visualization.
 from src.landmarks import head_pose
 from src.landmarks.gaze import LEFT_IRIS, RIGHT_IRIS, get_gaze_ratio
+from src.capture.webcam_stream import read_webcam_frames
 
 try:
     import mediapipe as mp
@@ -97,20 +98,50 @@ else:
         ) from exc
 
 
+def init_face_mesh():
+    """Return the configured face-landmark detector.
+
+    MediaPipe initialization is relatively expensive, so callers should create
+    one detector and reuse it for all frames in a video.
+    """
+    if legacy_face_mesh:
+        return face_mesh
+    return face_landmarker
+
+
+def get_landmarks(detector, frame):
+    """Return the first face's landmarks for one BGR frame, or ``None``.
+
+    OpenCV supplies BGR images, while both MediaPipe backends expect RGB. The
+    conversion stays here so video extraction and the live demo use the same
+    landmark interface.
+    """
+    if legacy_face_mesh:
+        # The legacy API returns a result object containing detected faces.
+        results = detector.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        if not results.multi_face_landmarks:
+            return None
+        return results.multi_face_landmarks[0].landmark
+
+    # The Tasks API needs an explicit image wrapper and increasing timestamps.
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    mp_image = MpImage(image_format=ImageFormat.SRGB, data=rgb)
+    timestamp_ms = getattr(detector, "_extraction_timestamp_ms", -1) + 1
+    detector._extraction_timestamp_ms = timestamp_ms
+    result = detector.detect_for_video(mp_image, timestamp_ms)
+    if not result.face_landmarks:
+        return None
+    return result.face_landmarks[0]
+
+
 def run_face_mesh_demo():
     """Run the live webcam demo for face landmark detection and overlays."""
     # Keep the display tied to the most recently captured frame.  Some camera
     # backends otherwise queue several frames, which makes the iris markers look
     # as though they are trailing the user's eyes.
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     capture_started_at = time.perf_counter()
     timestamp_ms = -1
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-
+    for frame in read_webcam_frames():
         if legacy_face_mesh:
             # Convert OpenCV's BGR frame to the RGB format expected by MediaPipe.
             results = face_mesh.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -147,7 +178,6 @@ def run_face_mesh_demo():
         if cv2.waitKey(1) == ord("q"):
             break
 
-    cap.release()
     cv2.destroyAllWindows()
 
 

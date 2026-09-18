@@ -1,5 +1,6 @@
 opencv-python
 mediapipe==0.10.35
+PyYAML
 numpy
 pandas
 scikit-learn

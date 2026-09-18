@@ -1,0 +1,48 @@
+# Interview screen-reading detector configuration.
+
+# Paths are relative to the repository root unless an absolute path is given.
+paths:
+  data_raw: data/raw
+  features_csv: data/features.csv
+  models_dir: models
+  face_landmarker_model: models/face_landmarker.task
+
+# Each training example is a sequence of consecutive frame-level features.
+windowing:
+  window_size: 60
+  stride: 10
+
+# Class IDs used by the training data and model outputs.
+classes:
+  talking: 0
+  looking: 1
+  reading: 2
+
+# Alert behavior for the rolling online score.
+# These values are initial defaults and should be tuned on validation data.
+alert:
+  score_window_size: 10
+  warning_threshold: 0.50
+  strong_threshold: 0.75
+
+# Constants used while turning recorded videos into feature rows.
+extraction:
+  no_face_policy: skip
+  gaze_component: horizontal
+  video_extensions:
+    - .avi
+    - .m4v
+    - .mov
+    - .mp4
+    - .mkv
+    - .webm
+
+# The feature CSV schema is kept here so downstream code can validate inputs.
+features:
+  columns:
+    - subject_id
+    - class_label
+    - frame_number
+    - pitch
+    - yaw
+    - gaze_ratio
