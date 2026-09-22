@@ -14,7 +14,15 @@ def _loader(data, batch_size, shuffle):
 	return DataLoader(TensorDataset(features, labels), batch_size=batch_size, shuffle=shuffle)
 
 
-def train_model(model, train_data, val_data, epochs, learning_rate=1e-3, batch_size=64):
+def train_model(
+	model,
+	train_data,
+	val_data,
+	epochs,
+	learning_rate=1e-3,
+	batch_size=64,
+	class_weights=None,
+):
 	"""Train a model and return per-epoch loss and accuracy history."""
 	if epochs <= 0:
 		raise ValueError("epochs must be positive")
@@ -22,7 +30,8 @@ def train_model(model, train_data, val_data, epochs, learning_rate=1e-3, batch_s
 	train_loader = _loader(train_data, batch_size, shuffle=True)
 	val_loader = _loader(val_data, batch_size, shuffle=False)
 	optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-	criterion = nn.NLLLoss()
+	weights = None if class_weights is None else torch.as_tensor(class_weights, dtype=torch.float32, device=device)
+	criterion = nn.NLLLoss(weight=weights)
 	history = {"train_loss": [], "val_loss": [], "val_accuracy": []}
 
 	for _ in range(epochs):

@@ -12,6 +12,17 @@ windowing:
   window_size: 60
   stride: 10
 
+# Dedicated reading detector settings. At 15 FPS, 75 frames represent 5 seconds.
+reading_detection:
+  sampling_fps: 15
+  window_seconds: 5
+  stride_seconds: 0.5
+  positive_threshold: 0.70
+  negative_threshold: 0.40
+  consecutive_positive_windows: 2
+  consecutive_negative_windows: 2
+  motion_features: true
+
 # Class IDs used by the training data and model outputs.
 classes:
   talking: 0
@@ -46,3 +57,11 @@ features:
     - pitch
     - yaw
     - gaze_ratio
+  reading_motion_columns:
+    - pitch_velocity
+    - yaw_velocity
+    - gaze_velocity
+    - pitch_acceleration
+    - yaw_acceleration
+    - gaze_acceleration
+    - horizontal_motion

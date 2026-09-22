@@ -218,3 +218,66 @@ validated on the extracted feature data.
 	 regression test passes.
 - Confirmed the `.pt` checkpoint is a valid binary PyTorch file; it begins with
 	 `PK` because PyTorch stores checkpoints in a ZIP-based format.
+
+## Version 0.2.0
+
+**Note:** Exploratory data analysis was completed and the project was extended
+with a five-second binary reading-motion detector.
+
+### EDA Findings
+
+- `data/features.csv` contains `38,085` frame-level rows from
+	`SUBJECT_01`, `SUBJECT_02`, and `SUBJECT_03`.
+- The frame-level class counts are class 0: `16,649`, class 1: `12,880`,
+	and class 2: `8,556`; class 2 is the minority class.
+- No missing values were found in the extracted feature CSV.
+- Class 1 has strongly negative average pitch (`-37.1563`), supporting the
+	looking-down interpretation.
+- Class 2 has a different yaw pattern and slightly higher average gaze ratio,
+	which supports using temporal movement rather than posture alone.
+- The existing 60-frame, stride-10 configuration produced `3,766` windows.
+- SUBJECT_01 has no class 2 recording, so subject-level validation and
+	per-class metrics remain important generalization safeguards.
+- Full EDA details were recorded in `findings.md` and the analysis notebook was
+	updated in `notebooks/exploration.ipynb`.
+
+### Reading Detector Implementation
+
+- Added `src/features/motion.py` to calculate velocity, acceleration, and
+	horizontal-motion features from pitch, yaw, and gaze ratio.
+- Extended `src/windowing/make_windows.py` with motion-aware binary reading
+	windows while preserving the original three-class API.
+- Added a default five-second window configuration in `configs/config.yaml`:
+	`15 FPS`, `75 frames`, and a `0.5 second` stride.
+- The new reading input contains 10 channels: the 3 original features plus 7
+	temporal motion features.
+- Added `scripts/run_reading_training.py` for class-weighted binary CNN
+	training. The target is `0 = not reading` and `1 = reading`, with original
+	classes 0 and 1 combined into not-reading.
+- Added `src/scoring/reading_score.py` with hysteresis and consecutive-window
+	requirements. The default alert starts at probability `0.70` for two
+	consecutive windows and clears at probability `0.40` for two windows.
+- Added `src/model/reading_detector.py`, a stateful streaming detector that
+	accumulates 75 frames and returns `reading_probability` and `is_reading`.
+- Added regression tests covering motion feature shape, five-second windows,
+	and persistent alert behavior.
+
+### Validation
+
+- The real feature CSV produced `4,690` binary reading windows with shape
+	`(75, 10)`.
+- Focused project tests passed: `4 tests`, `OK`.
+- The streaming detector returned no result before 75 frames and produced a
+	prediction after the buffer filled.
+- A one-epoch end-to-end training smoke test completed successfully and saved
+	a checkpoint; the temporary smoke checkpoint was removed afterward.
+- Pylance diagnostics and `git diff --check` reported no errors for the
+	changed implementation files.
+
+### Current Limitation / Next Integration Step
+
+- The detector currently assumes the extracted feature stream is sampled at
+	15 FPS. The raw video FPS is not persisted in `data/features.csv`.
+- `app/video_processor.py` and `app/streamlit_app.py` are still empty. The next
+	implementation step is to connect `ReadingDetector.update(pitch, yaw,
+	gaze_ratio)` to the live MediaPipe frame-processing loop.
