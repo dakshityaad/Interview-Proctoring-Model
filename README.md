@@ -439,53 +439,92 @@ This message is a review prompt, not proof of cheating.
 ## 8. Repository Structure
 
 ```text
-app/
-├── streamlit_app.py       Live Streamlit dashboard
-└── video_processor.py     Live extraction, buffering, and inference
-
-configs/
-└── config.yaml            Paths, classes, windowing, and alert defaults
-
-data/
-├── raw/                   Recorded source videos
-├── features.csv           Extracted frame-level feature data
-├── features_six_subjects.csv
-└── features_7_5fps.csv    Timestamp-standardized feature data
-
-models/
-├── cnn_lstm_classifier_35epochs_SUBJECT_06.pt
-└── other comparison checkpoints and training artifacts
-
-notebooks/
-└── dataset and model exploration notebooks
-
-scripts/
-├── run_extraction.py
-├── add_video_timestamps.py
-├── run_eda.py
-├── run_training.py
-├── run_evaluation.py
-└── run_reading_training.py
-
-src/
-├── capture/               Webcam and recorded-video readers
-├── features/              Dataset preparation and motion features
-├── landmarks/             MediaPipe, head pose, and gaze extraction
-├── model/                 ANN, DNN, CNN, LSTM, and binary detectors
-├── scoring/               Rolling and binary reading scoring
-└── windowing/             Temporal sequence and resampling logic
-
-tests/
-├── test_gaze.py
-├── test_landmarks.py
-└── test_windowing.py
-
-results/                   Evaluation files and generated plots
-findings.md                Dataset and experiment findings
-context.md                 Project history and release context
-HOWTO.md                   Detailed operational instructions
-README.md                  Project overview and user guide
+Interview-Proctoring-Model/
+├── app/                                  # Live webcam application
+│   ├── streamlit_app.py                  # Streamlit dashboard and controls
+│   └── video_processor.py                # MediaPipe extraction and model inference
+├── configs/
+│   └── config.yaml                       # Sampling, classes, windows, and alerts
+├── data/                                 # Local datasets (ignored by Git)
+│   ├── raw/                              # 18 source videos for subjects 01-06
+│   │   ├── SUBJECT_01_LOOKING.mp4
+│   │   ├── SUBJECT_01_READING.mp4
+│   │   ├── SUBJECT_01_TALKING.mp4
+│   │   └── SUBJECT_02...SUBJECT_06_*.mp4
+│   ├── frames/                           # Optional extracted frame cache
+│   ├── features.csv                      # Initial extracted frame features
+│   ├── features_six_subjects.csv         # Six-subject dataset
+│   └── features_7_5fps.csv               # Timestamp-standardized 7.5 FPS data
+├── models/
+│   ├── cnn_lstm_classifier_35epochs_SUBJECT_06.pt  # Production model
+│   ├── cnn.md                            # CNN architecture notes
+│   └── face_landmarker.task              # MediaPipe face landmark model
+├── notebooks/
+│   └── exploration.ipynb                 # Dataset and model exploration
+├── results/
+│   ├── ann_35epochs_evaluation.txt       # ANN baseline metrics
+│   ├── cnn_35epochs_evaluation.txt       # CNN metrics
+│   ├── cnn_lstm_35epochs_subject06_eval.txt
+│   ├── cnn_lstm_v2_35epochs_subject06_eval.txt
+│   ├── dnn_35epochs_evaluation.txt
+│   ├── dnn_35epochs_subject06_eval.txt
+│   ├── dnn_lstm_35epochs_subject06_eval.txt
+│   ├── reading_*_35epochs_evaluation.txt # Binary reading experiments
+│   └── *_eda.png                         # Feature distribution and coverage plots
+├── scripts/
+│   ├── add_video_timestamps.py           # Add timestamp metadata to recordings
+│   ├── run_eda.py                        # Generate feature and class coverage analysis
+│   ├── run_extraction.py                 # Extract pitch, yaw, and gaze features
+│   ├── run_evaluation.py                 # Evaluate temporal and baseline models
+│   ├── run_reading_training.py           # Train binary reading detectors
+│   └── run_training.py                   # Train the selected architectures
+├── src/
+│   ├── capture/
+│   │   ├── __init__.py
+│   │   └── webcam_stream.py              # Webcam frame reader
+│   ├── features/
+│   │   ├── __init__.py
+│   │   ├── extract_features.py           # Recorded-video feature pipeline
+│   │   ├── motion.py                     # Motion-derived feature calculations
+│   │   └── resampling.py                 # Timestamp-based resampling
+│   ├── landmarks/
+│   │   ├── __init__.py
+│   │   ├── face_mesh.py                  # MediaPipe face mesh integration
+│   │   ├── gaze.py                       # Eye and horizontal gaze ratios
+│   │   └── head_pose.py                  # Pitch and yaw calculations
+│   ├── model/
+│   │   ├── __init__.py
+│   │   ├── ann_model.py                  # ANN baseline
+│   │   ├── cnn_model.py                  # CNN baseline
+│   │   ├── cnn_lstm_model.py             # Selected CNN+LSTM architecture
+│   │   ├── dataset.py                    # Sequence datasets and data splitting
+│   │   ├── dnn_lstm_model.py             # DNN+LSTM comparison model
+│   │   ├── dnn_model.py                  # DNN baseline
+│   │   ├── infer.py                      # Offline model inference helpers
+│   │   ├── reading_detector.py           # Binary reading detector
+│   │   └── train.py                      # Shared training and evaluation logic
+│   ├── scoring/
+│   │   ├── __init__.py
+│   │   ├── reading_score.py              # Sustained-reading score
+│   │   └── rolling_score.py              # Rolling prediction smoothing
+│   ├── windowing/
+│   │   ├── __init__.py
+│   │   └── make_windows.py               # Gap handling and 38-frame windows
+│   └── __init__.py
+├── tests/
+│   ├── test_gaze.py                      # Gaze-ratio calculations
+│   ├── test_landmarks.py                 # Landmark and head-pose checks
+│   └── test_windowing.py                 # Resampling and sequence tests
+├── .gitignore                            # Data, environments, caches, and generated artifacts
+├── build_sheet.md                        # Build and implementation notes
+├── context.md                            # Project history, decisions, and release context
+├── findings.md                           # Dataset and model findings
+├── HOWTO.md                              # Setup and operational guide
+├── README.md                             # Main project documentation
+└── requirements.txt                      # Python dependencies
 ```
+
+> Large datasets, raw recordings, local virtual environments, and generated comparison checkpoints are intentionally excluded from Git. The documented local workflow uses the 77,519-row feature datasets, while Git tracks the production CNN+LSTM checkpoint, source code, results, notebooks, and project documentation.
 
 ---
 
