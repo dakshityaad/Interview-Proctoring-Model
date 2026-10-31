@@ -1,4 +1,12 @@
+
 # How To Run the Interview Proctoring Project
+
+cd "D:\Interview-Proctoring-Model"
+.\.venv312\Scripts\python.exe src\landmarks\face_mesh.py
+
+cd "D:\Interview-Proctoring-Model"
+python scripts\run_reading_training.py --epochs 30
+
 
 This guide explains how to set up the project, inspect the data, extract features, train the CNN models, read validation accuracy, and run the tests.
 
@@ -209,6 +217,20 @@ Choose a held-out subject explicitly:
 python scripts\run_reading_training.py --test-subject SUBJECT_02 --epochs 20
 ```
 
+The same pipeline also supports ANN and DNN baselines. Each window still has shape `(75, 10)`; ANN and DNN flatten it to 750 input values before passing it through their dense layers.
+
+```powershell
+python scripts\run_reading_training.py --model-type ann --test-subject SUBJECT_01 --epochs 35
+python scripts\run_reading_training.py --model-type dnn --test-subject SUBJECT_01 --epochs 35
+```
+
+Their default checkpoints are:
+
+```text
+models/reading_ann_classifier.pt
+models/reading_dnn_classifier.pt
+```
+
 The command reports:
 
 ```text
@@ -325,6 +347,8 @@ code notebooks\exploration.ipynb
 
 # 5. Train the original three-class CNN
 python scripts\run_training.py --test-subject SUBJECT_03 --epochs 20
+python scripts\run_training.py --model-type ann --test-subject SUBJECT_03 --epochs 20
+python scripts\run_training.py --model-type dnn --test-subject SUBJECT_03 --epochs 20
 
 # 6. Train the five-second binary reading detector
 python scripts\run_reading_training.py --test-subject SUBJECT_03 --epochs 20

@@ -1,0 +1,26 @@
+Model: CNN
+Held-out subject: SUBJECT_06
+Windows evaluated: 754
+Accuracy: 0.6830
+Balanced accuracy: 0.6859
+Macro precision: 0.6792
+Macro recall: 0.6859
+Macro F1: 0.6697
+Weighted F1: 0.6750
+Log loss: 1.4977
+ROC AUC (OvR macro): 0.8511
+ROC AUC (OvR weighted): 0.8559
+Confusion matrix (rows=actual, columns=predicted):
+[[133  25  50]
+ [  0 255   8]
+ [142  14 127]]
+Per-class metrics:
+              precision    recall  f1-score   support
+
+     Talking     0.4836    0.6394    0.5507       208
+Looking down     0.8673    0.9696    0.9156       263
+     Reading     0.6865    0.4488    0.5427       283
+
+    accuracy                         0.6830       754
+   macro avg     0.6792    0.6859    0.6697       754
+weighted avg     0.6936    0.6830    0.6750       754

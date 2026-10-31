@@ -1,0 +1,23 @@
+Model: ANN
+Held-out subject: SUBJECT_06
+Windows evaluated: 1881
+Accuracy: 0.6225
+Balanced accuracy: 0.5676
+Macro precision: 0.5818
+Macro recall: 0.5676
+Macro F1: 0.5656
+Weighted F1: 0.6048
+Log loss: 1.9046
+ROC AUC: 0.7234
+Confusion matrix (rows=actual, columns=predicted):
+[[926 249]
+ [461 245]]
+Per-class metrics:
+              precision    recall  f1-score   support
+
+ Not reading     0.6676    0.7881    0.7229      1175
+     Reading     0.4960    0.3470    0.4083       706
+
+    accuracy                         0.6225      1881
+   macro avg     0.5818    0.5676    0.5656      1881
+weighted avg     0.6032    0.6225    0.6048      1881

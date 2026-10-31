@@ -1,0 +1,26 @@
+Model: CNN_LSTM
+Held-out subject: SUBJECT_06
+Windows evaluated: 754
+Accuracy: 0.7454
+Balanced accuracy: 0.7485
+Macro precision: 0.7446
+Macro recall: 0.7485
+Macro F1: 0.7382
+Weighted F1: 0.7436
+Log loss: 0.9606
+ROC AUC (OvR macro): 0.8882
+ROC AUC (OvR weighted): 0.8917
+Confusion matrix (rows=actual, columns=predicted):
+[[150  12  46]
+ [  0 255   8]
+ [120   6 157]]
+Per-class metrics:
+              precision    recall  f1-score   support
+
+     Talking     0.5556    0.7212    0.6276       208
+Looking down     0.9341    0.9696    0.9515       263
+     Reading     0.7441    0.5548    0.6356       283
+
+    accuracy                         0.7454       754
+   macro avg     0.7446    0.7485    0.7382       754
+weighted avg     0.7583    0.7454    0.7436       754

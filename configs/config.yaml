@@ -9,12 +9,16 @@ paths:
 
 # Each training example is a sequence of consecutive frame-level features.
 windowing:
-  window_size: 60
+  # Resample timestamped features before forming five-second CNN windows.
+  sampling_fps: 7.5
+  window_size: 38
   stride: 10
+  max_gap_seconds: 0.40
+  max_missing_fraction: 0.10
 
-# Dedicated reading detector settings. At 15 FPS, 75 frames represent 5 seconds.
+# Dedicated reading detector settings. At 7.5 FPS, 38 frames are about 5 seconds.
 reading_detection:
-  sampling_fps: 15
+  sampling_fps: 7.5
   window_seconds: 5
   stride_seconds: 0.5
   positive_threshold: 0.70
@@ -54,6 +58,8 @@ features:
     - subject_id
     - class_label
     - frame_number
+    - timestamp_seconds
+    - source_fps
     - pitch
     - yaw
     - gaze_ratio

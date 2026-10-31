@@ -4,5 +4,31 @@ __pycache__/
 *.py[cod]
 data/
 
-# Keep trained PyTorch checkpoints under version control.
-!models/*.pt
+# Local environments and generated Python artifacts
+.venv*/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.vscode/
+
+# Local datasets, raw video clips, and generated CSV files
+data/
+*.mp4
+*.avi
+*.mov
+
+# Notebook runtime output and profiling artifacts
+.ipynb_checkpoints/
+*.prof
+*.trace
+
+# Ignore PyTorch checkpoints except the selected forward model.
+*.pt
+*.pth
+!models/cnn_lstm_classifier_35epochs_SUBJECT_06.pt
+
+# Local logs and temporary files
+*.log
+*.tmp
+.tmp/

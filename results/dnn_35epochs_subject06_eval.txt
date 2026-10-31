@@ -1,0 +1,26 @@
+Model: DNN
+Held-out subject: SUBJECT_06
+Windows evaluated: 754
+Accuracy: 0.7281
+Balanced accuracy: 0.7427
+Macro precision: 0.7591
+Macro recall: 0.7427
+Macro F1: 0.7243
+Weighted F1: 0.7266
+Log loss: 0.8069
+ROC AUC (OvR macro): 0.8918
+ROC AUC (OvR weighted): 0.8953
+Confusion matrix (rows=actual, columns=predicted):
+[[175   5  28]
+ [ 11 243   9]
+ [152   0 131]]
+Per-class metrics:
+              precision    recall  f1-score   support
+
+     Talking     0.5178    0.8413    0.6410       208
+Looking down     0.9798    0.9240    0.9511       263
+     Reading     0.7798    0.4629    0.5809       283
+
+    accuracy                         0.7281       754
+   macro avg     0.7591    0.7427    0.7243       754
+weighted avg     0.7773    0.7281    0.7266       754

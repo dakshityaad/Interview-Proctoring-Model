@@ -1,248 +1,210 @@
-# CNN EDA Findings
+# Feature Dataset EDA Findings
 
-This document summarizes the exploratory data analysis performed on the interview-proctoring CNN dataset built from webcam-based gaze and head-pose features.
+This report was regenerated from `data/features.csv` by `scripts/run_eda.py`.
+It covers the frame-level model inputs: `pitch`, `yaw`, and `gaze_ratio`.
 
-## Scope
+## Data quality and coverage
 
-The analysis was grounded in the project design in [README.md](README.md) and [context.md](context.md), and it was run against the extracted feature file at [data/features.csv](data/features.csv). The CNN model uses 60-frame temporal windows with 3 input features per frame:
+- **Usable frames:** 77,519
+- **Subjects:** 6
+- **Activity clips represented:** 18 (all subjects have all three labels)
+- **Missing values:** 0
+- **Duplicate subject/class/frame rows:** 0
+- **Gaze-ratio estimates outside the nominal 0–1 range:** 22 (0.028%)
 
-- pitch
-- yaw
-- gaze_ratio
+### Frame balance by activity
 
-The project uses a 3-class labeling scheme:
+| class_label | frames | share (%) |
+| --- | --- | --- |
+| Talking | 26462 | 34.14 |
+| Looking down | 20970 | 27.05 |
+| Reading | 30087 | 38.81 |
 
-- 0 = not cheating
-- 1 = looking down / possible phone use
-- 2 = reading from screen
+The dataset is moderately imbalanced: Reading is the largest class and Looking down the smallest. Use class-aware metrics and consider weighted loss when training.
 
----
+The 22 out-of-range gaze estimates are rare but should be monitored; they can result from landmark jitter or partial face detection. Prefer clipping or robust scaling based on the training split only rather than silently dropping them.
 
-## 1. Data overview
+### Frames by subject and activity
 
-The verified dataset contains 38,085 frame-level rows across 3 subjects:
+| subject_id | Talking | Looking down | Reading | Total |
+| --- | --- | --- | --- | --- |
+| SUBJECT_01 | 5060 | 4218 | 10385 | 19663 |
+| SUBJECT_02 | 2250 | 2191 | 2791 | 7232 |
+| SUBJECT_03 | 9339 | 6471 | 5765 | 21575 |
+| SUBJECT_04 | 2508 | 1054 | 2388 | 5950 |
+| SUBJECT_05 | 2272 | 1029 | 2401 | 5702 |
+| SUBJECT_06 | 5033 | 6007 | 6357 | 17397 |
 
-- SUBJECT_01
-- SUBJECT_02
-- SUBJECT_03
+Subject coverage varies from **5,702** usable frames for SUBJECT_05 to **21,575** for SUBJECT_03. This makes subject-held-out validation preferable to random frame splitting.
 
-There are no missing values in the feature file.
+### Source frame-rate caveat
 
-### Class counts
+Frame count is **not** a duration measure in this dataset. The clips for subjects 2, 4, and 5 were recorded at about 7.5 FPS; subject 6 at about 16.7 FPS; subject 3 at 30 FPS; and subject 1 contains clips at about 16.7 FPS plus a 30-FPS Reading clip.
 
-| Class | Count | Share |
-|---|---:|---:|
-| 0 | 16,649 | 43.7% |
-| 1 | 12,880 | 33.8% |
-| 2 | 8,556 | 22.4% |
+| subject_id | source_fps | recorded_minutes |
+| --- | --- | --- |
+| SUBJECT_01 | 16.68, 30.00 | 15.61 |
+| SUBJECT_02 | 7.51 | 16.1 |
+| SUBJECT_03 | 30.00 | 12.61 |
+| SUBJECT_04 | 7.51, 7.66 | 15.83 |
+| SUBJECT_05 | 7.51, 7.62 | 15.03 |
+| SUBJECT_06 | 16.68, 16.69 | 17.57 |
 
-### Observation
+This has two direct implications:
 
-The dataset is not perfectly balanced. Class 2 is the smallest and may need class weighting or careful evaluation metrics during training.
+1. Do not use raw frame totals to compare how much behavior was recorded per subject; compare duration instead.
+2. The existing motion features and five-second-window logic assume 15 FPS, so they currently represent different amounts of real time across subjects. Resample each recording to one common FPS (for example 15 FPS) or persist per-frame time/FPS and use time-aware derivatives before training the reading detector.
 
----
+## Feature summaries
 
-## 2. Feature summary statistics
+### Overall values
 
-### Overall feature stats
+| index | mean | std | min | max |
+| --- | --- | --- | --- | --- |
+| pitch | -16.0034 | 20.438 | -59.3932 | 42.1052 |
+| yaw | -1.6004 | 12.1052 | -73.8806 | 74.3929 |
+| gaze_ratio | 0.5343 | 0.0303 | -0.5854 | 1.4421 |
 
-| Feature | Mean | Std | Min | Max |
-|---|---:|---:|---:|---:|
-| pitch | -15.1835 | 21.3623 | -59.3932 | 38.2973 |
-| yaw | -4.2616 | 13.4643 | -73.8806 | 60.4497 |
-| gaze_ratio | 0.5384 | 0.0308 | -0.5854 | 1.1075 |
+### Mean feature values by activity
 
-### Class-wise means
+| activity | pitch | yaw | gaze_ratio |
+| --- | --- | --- | --- |
+| Talking | -4.7058 | -0.6893 | 0.5452 |
+| Looking down | -36.5879 | -7.9798 | 0.5191 |
+| Reading | -11.5927 | 2.0445 | 0.5354 |
 
-| Class | pitch | yaw | gaze_ratio |
-|---|---:|---:|---:|
-| 0 | -3.0956 | -1.5933 | 0.5470 |
-| 1 | -37.1563 | -11.3745 | 0.5171 |
-| 2 | -5.6278 | 1.2540 | 0.5540 |
+### Feature variability by activity (standard deviation)
 
-### Class-wise standard deviations
+| activity | pitch | yaw | gaze_ratio |
+| --- | --- | --- | --- |
+| Talking | 14.0672 | 12.1464 | 0.0327 |
+| Looking down | 20.2011 | 11.7384 | 0.0273 |
+| Reading | 13.8107 | 10.4586 | 0.0253 |
 
-| Class | pitch std | yaw std | gaze_ratio std |
-|---|---:|---:|---:|
-| 0 | 12.5355 | 12.1783 | 0.0323 |
-| 1 | 15.7488 | 11.6538 | 0.0251 |
-| 2 | 15.8038 | 13.9107 | 0.0136 |
+### Correlation
 
-### Interpretation
+| index | pitch | yaw | gaze_ratio |
+| --- | --- | --- | --- |
+| pitch | 1.0 | 0.2141 | 0.3281 |
+| yaw | 0.2141 | 1.0 | 0.0699 |
+| gaze_ratio | 0.3281 | 0.0699 | 1.0 |
 
-- Class 1 has a strongly negative average pitch, which matches the idea of looking down.
-- Class 2 has a noticeably different yaw pattern and a slightly higher gaze_ratio than the baseline.
-- Class 0 remains around neutral head orientation and a higher gaze_ratio than class 1.
-- The gaze_ratio range is relatively tight compared with pitch and yaw, meaning gaze is a useful signal but likely not the only discriminative feature.
+Pitch, yaw, and gaze ratio are correlated but not duplicates, so retaining all three model inputs is justified. The distribution plots show that Looking down is most clearly separated by head pitch; Reading overlaps more with the other behaviors and benefits from temporal information.
 
----
+## Window-level checks
 
-## 3. Feature correlations
+The three-class CNN configuration uses 60-frame windows with a stride of 10.
 
-Correlation among the three features:
-
-| Feature pair | Correlation |
+| Activity | 60-frame windows |
 |---|---:|
-| pitch vs yaw | 0.3790 |
-| pitch vs gaze_ratio | 0.4220 |
-| yaw vs gaze_ratio | 0.2353 |
+| Talking | 2,614 |
+| Looking down | 2,064 |
+| Reading | 2,976 |
 
-### Interpretation
+- **Total 60-frame windows:** 7,654
 
-The features are related, but not redundant. This supports the CNN using all 3 channels together rather than relying on one feature alone.
+The reading detector uses 75-frame windows (5 seconds at 15 FPS) with a stride of 8.
 
----
-
-## 4. Distribution by class
-
-The class-specific distributions show the expected directional behavior:
-
-- Looking-down behavior (class 1): more negative pitch values and lower gaze_ratio than class 0.
-- Reading behavior (class 2): more horizontal motion and a distinct gaze_ratio pattern relative to the baseline.
-- Normal interviewing behavior (class 0): more centered pitch/yaw values and a higher baseline gaze_ratio.
-
-The shape of the distributions supports the hypothesis that the project is learning a combination of sustained downward head posture and temporal reading rhythm rather than random noise.
-
----
-
-## 5. Window-level CNN input summary
-
-The CNN is trained on 60-frame windows with a stride of 10, as defined in [configs/config.yaml](configs/config.yaml) and implemented in [src/windowing/make_windows.py](src/windowing/make_windows.py).
-
-Verified window summary:
-
-- Total windows: 3,766
-- Window class counts:
-  - 0: 1,649
-  - 1: 1,272
-  - 2: 845
-
-### Observation
-
-The temporal window distribution preserves the class imbalance present in the original frame-level data. Class 2 remains the least represented in the actual model training windows.
-
----
-
-## 6. Subject-level balance and generalization risk
-
-The feature CSV contains all three subjects, but not equally across classes:
-
-| Subject | Class 0 | Class 1 | Class 2 |
-|---|---:|---:|---:|
-| SUBJECT_01 | 5,060 | 4,218 | 0 |
-| SUBJECT_02 | 2,250 | 2,191 | 2,791 |
-| SUBJECT_03 | 9,339 | 6,471 | 5,765 |
-
-### Interpretation
-
-- SUBJECT_01 is missing class 2 entirely, which is a major limitation for subject-independent validation.
-- The dataset is realistic for a small pilot study, but it is not a strong balanced benchmark for generalization.
-- Any test split should be subject-aware, as the project already intends.
-
-This is consistent with the project goal of evaluating on a held-out subject rather than random frame-level splitting.
-
----
-
-## 7. Main takeaways
-
-1. The data is structured appropriately for a temporal CNN.
-2. The feature channels carry meaningful signal separation by behavior class.
-3. Class imbalance is present and should be addressed in training.
-4. The strongest class separation appears in pitch for class 1, while class 2 is more subtle and likely depends on the temporal sequence pattern.
-5. Subject-level imbalance could reduce generalization performance if the evaluation set is not chosen carefully.
-6. The CNN is a reasonable architecture for the task because it uses time-varying head-pose and gaze information rather than a single static frame.
-
----
-
-## 8. Recommended follow-up actions
-
-- Track per-class precision/recall in validation, not just overall accuracy.
-- Consider class-weighted loss because class 2 is underrepresented.
-- Evaluate on a held-out subject and inspect confusion patterns by class.
-- Review whether the reading pattern is cleanly separable from downward looking behavior in the temporal windows.
-- If needed, test whether the model benefits from stronger sequence smoothing or longer windows.
-
----
-
-## 9. Final conclusion
-
-The EDA supports the project’s core hypothesis: the three feature channels capture meaningful behavioral differences among normal behavior, looking down, and reading. The strongest signal is in head pitch for downward-looking behavior, while the reading class likely relies more on temporal structure across the window. The main practical challenge is class imbalance and limited subject diversity, both of which should be treated as key training and evaluation concerns.
-
----
-
-## 10. Five-second reading-detector accuracy
-
-The binary five-second reading detector was trained for 20 epochs using
-class-weighted loss and evaluated with subject-level holdout validation.
-
-| Held-out subject | Validation accuracy |
+| Binary target | 75-frame windows |
 |---|---:|
-| SUBJECT_03 | 75.96% |
-| SUBJECT_02 | 66.36% |
+| Not reading | 5,823 |
+| Reading | 3,708 |
 
-The average of these two measured folds is approximately **71.16%**.
+- **Total five-second windows:** 9,531
 
-The earlier result of 37.74% was from a one-epoch smoke test and should not be
-treated as the final detector performance.
+## Key takeaways
 
-### Interpretation
+1. The refreshed dataset now contains six subjects and complete coverage for all three activities per subject.
+2. No missing values or duplicate frame keys were found.
+3. Raw frame counts are confounded by source FPS. Normalize sampling before using temporal or motion-based models.
+4. Class and subject imbalance remain important: evaluate with per-class precision/recall/F1 and a subject-held-out split.
+5. Frame-level pitch offers the clearest signal for Looking down; temporal windows remain especially important for identifying Reading.
 
-- The detector is learning useful reading-related patterns, but performance
-  varies substantially between people.
-- The result is not yet a reliable benchmark because the dataset contains only
-  three subjects.
-- Accuracy alone is insufficient for this application. Reading precision,
-  recall, F1 score, false reading alerts per minute, and detection delay should
-  also be measured.
+## 35-epoch subject-held-out evaluation (Subject 06)
 
----
+Models were retrained with 35 epochs using the timestamp-standardized 7.5 FPS, 38-frame dataset and evaluated on SUBJECT_06.
 
-## 11. Recommended accuracy improvements
+### Three-class activity models
 
-### Highest priority: collect more diverse data
+| Model | Accuracy | Balanced accuracy | Macro precision | Macro recall | Macro F1 | Weighted F1 | ROC AUC OvR (macro) | Log loss |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| CNN | 68.30% | 68.59% | 67.92% | 68.59% | 66.97% | 67.50% | 85.11% | 1.4977 |
+| ANN | 70.69% | 71.35% | 72.19% | 71.35% | 70.53% | 71.02% | 85.60% | 1.1929 |
+| DNN | 72.81% | 74.27% | 75.91% | 74.27% | 72.43% | 72.66% | 89.18% | 0.8069 |
 
-Add more subjects and balanced examples of:
+Three-class per-label F1:
 
-- genuine reading
-- looking down without reading
-- normal speaking and listening
-- short glances away
-- different reading speeds and pauses
+| Model | Talking | Looking down | Reading |
+|---|---:|---:|---:|
+| CNN | 55.07% | 91.56% | 54.27% |
+| ANN | 59.10% | 94.70% | 57.79% |
+| DNN | 64.10% | 95.11% | 58.09% |
 
-The most important negative examples are looking-down clips that do not contain
-a repeated reading motion.
+### Binary reading models
 
-### Correct timing and frame gaps
+| Model | Accuracy | Balanced accuracy | Reading precision | Reading recall | Reading F1 | Macro F1 | ROC AUC | Log loss |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| CNN | 53.69% | 46.14% | 28.79% | 15.86% | 20.46% | 43.90% | 65.64% | 5.7594 |
+| ANN | 62.25% | 56.76% | 49.60% | 34.70% | 40.83% | 56.56% | 72.34% | 1.9046 |
+| DNN | 58.16% | 55.26% | 44.19% | 43.63% | 43.91% | 55.27% | 66.44% | 0.7891 |
 
-The detector currently assumes a 15 FPS feature stream, but the source video
-FPS is not stored in `data/features.csv`. Incorrect FPS changes velocity and
-acceleration values. Also, skipped face detections can create frame-number gaps
-that are currently treated as if frames were consecutive.
+Within the original flat CNN/ANN/DNN comparison, the three-class DNN is the strongest activity classifier. Among binary reading detectors, ANN has the best accuracy and ROC AUC, while DNN has the best Reading recall and F1. The binary reading models remain weaker and should be improved before deployment, especially because Reading recall is below 50% for every binary model.
 
-The extraction pipeline should eventually persist the source FPS or resample
-features to a known rate before calculating motion features. Derivatives should
-also account for the actual frame-number difference.
+### CNN+LSTM comparison with the three-class DNN
 
-### Add explicit reading-pattern features
+A CNN+LSTM was trained for 35 epochs on the same 38-frame, three-feature, three-class windows and evaluated on the same 754 `SUBJECT_06` windows.
 
-Useful additional features include:
+| Model | Accuracy | Balanced accuracy | Macro precision | Macro recall | Macro F1 | Weighted F1 | ROC AUC OvR macro | Log loss |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| DNN | 72.81% | 74.27% | 75.91% | 74.27% | 72.43% | 72.66% | 89.18% | 0.8069 |
+| CNN+LSTM | 77.72% | 78.18% | 78.12% | 78.18% | 77.38% | 77.87% | 90.67% | 0.8542 |
 
-- left-to-right direction-change count
-- number of small horizontal sweeps
-- large return-sweep magnitude
-- horizontal movement range
-- movement periodicity or autocorrelation
-- percentage of time spent moving horizontally
+CNN+LSTM confusion matrix (rows=actual, columns=predicted):
 
-These features directly represent the expected reading rhythm:
+| Actual \ Predicted | Talking | Looking down | Reading |
+|---|---:|---:|---:|
+| Talking | 162 | 2 | 44 |
+| Looking down | 0 | 254 | 9 |
+| Reading | 113 | 0 | 170 |
 
-```text
-small movement -> small movement -> small movement -> large return sweep
-```
+CNN+LSTM improved accuracy by 4.91 percentage points, balanced accuracy by 3.91 points, macro F1 by 4.95 points, and macro ROC AUC by 1.49 points. Reading recall increased from 46.29% to 60.07%, and Reading F1 increased from 58.09% to 67.19%. Its log loss was higher, so calibration should be checked before deployment.
 
-### Tune the temporal window and training
+### DNN+LSTM comparison with the flat DNN and CNN+LSTM
 
-Compare four-, five-, and six-second windows. Reading behavior may require more
-than five seconds to become reliable. Also test longer training with early
-stopping and save the best validation checkpoint rather than only the final
-epoch.
+The DNN+LSTM projects each frame through dense layers before temporal modeling by a 64-unit LSTM. It was trained for 35 epochs and evaluated on the same 754 `SUBJECT_06` windows.
+
+| Model | Accuracy | Balanced accuracy | Macro precision | Macro recall | Macro F1 | Weighted F1 | ROC AUC OvR macro | Log loss |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Flat DNN | 72.81% | 74.27% | 75.91% | 74.27% | 72.43% | 72.66% | 89.18% | 0.8069 |
+| CNN+LSTM | 77.72% | 78.18% | 78.12% | 78.18% | 77.38% | 77.87% | 90.67% | 0.8542 |
+| DNN+LSTM | 73.08% | 73.33% | 73.23% | 73.33% | 72.38% | 73.01% | 89.78% | 0.8099 |
+
+DNN+LSTM confusion matrix (rows=actual, columns=predicted):
+
+| Actual \ Predicted | Talking | Looking down | Reading |
+|---|---:|---:|---:|
+| Talking | 145 | 13 | 50 |
+| Looking down | 3 | 254 | 6 |
+| Reading | 128 | 3 | 152 |
+
+DNN+LSTM per-class F1: Talking 59.92%, Looking down 95.31%, Reading 61.91%. Relative to the flat DNN, it improved accuracy by 0.27 points and Reading recall by 7.42 points, but reduced macro F1 by 0.05 points and macro precision by 2.68 points. CNN+LSTM remains the strongest of the three temporal-comparison architectures on this held-out subject.
+
+## Selected model: CNN+LSTM
+
+The project will carry forward with the three-class CNN+LSTM because it produced the best subject-held-out accuracy, balanced accuracy, macro F1, and macro ROC AUC among the three-class temporal architectures evaluated on `SUBJECT_06`. The flat DNN and DNN+LSTM remain documented comparison baselines; neither is currently the production candidate.
+
+Carry-forward priorities for CNN+LSTM:
+
+1. Improve probability calibration because its 0.8542 log loss is higher than the flat DNN and DNN+LSTM baselines.
+2. Run repeated-seed training and leave-one-subject-out evaluation before treating the single-subject result as robust.
+3. Preserve the standardized 38-frame/7.5 FPS three-feature pipeline in subsequent experiments.
+4. Focus next improvements on Reading recall and Talking-versus-Reading confusion, especially the 113 Reading windows predicted as Talking and 44 Talking windows predicted as Reading in the held-out confusion matrix.
+5. Keep the mutually exclusive three-class interpretation explicit unless a reliable multilabel annotation strategy is introduced.
+
+## Generated figures
+
+- `results/pitch_eda.png`
+- `results/yaw_eda.png`
+- `results/gaze_ratio_eda.png`
+- `results/subject_class_coverage_eda.png`
+- `results/feature_correlation_eda.png`

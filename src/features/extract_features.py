@@ -18,10 +18,13 @@ from src.capture import webcam_stream
 from src.landmarks import face_mesh, gaze, head_pose
 
 
+
 CSV_COLUMNS = [
     "subject_id",
     "class_label",
     "frame_number",
+    "timestamp_seconds",
+    "source_fps",
     "pitch",
     "yaw",
     "gaze_ratio",
@@ -63,8 +66,9 @@ def _video_jobs(data_raw_dir):
 
 
 def extract_features_from_video(path, subject_id, class_label):
-    """Return ``[subject, class, frame, pitch, yaw, gaze]`` rows for one video."""
+    """Return timestamped pose and gaze rows for one video."""
     rows = []
+    source_fps = webcam_stream.get_video_fps(path)
     # The detector is initialized once per video, not once per frame.
     detector = face_mesh.init_face_mesh()
 
@@ -92,6 +96,8 @@ def extract_features_from_video(path, subject_id, class_label):
                 subject_id,
                 class_label,
                 frame_number,
+                frame_number / source_fps,
+                source_fps,
                 pitch,
                 yaw,
                 gaze_ratio,

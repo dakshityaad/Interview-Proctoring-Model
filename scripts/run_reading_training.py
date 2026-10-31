@@ -10,8 +10,10 @@ if str(ROOT) not in sys.path:
 
 import yaml
 
-from src.model.cnn_model import build_model
+from src.model.ann_model import build_model as build_ann_model
+from src.model.cnn_model import build_model as build_cnn_model
 from src.model.dataset import split_by_subject
+from src.model.dnn_model import build_model as build_dnn_model
 from src.model.train import save_model, train_model
 from src.windowing.make_windows import build_reading_dataset
 
@@ -19,12 +21,15 @@ from src.windowing.make_windows import build_reading_dataset
 def main():
 	parser = argparse.ArgumentParser(description=__doc__)
 	parser.add_argument("--features-csv", type=Path, default=ROOT / "data" / "features.csv")
-	parser.add_argument("--model-path", type=Path, default=ROOT / "models" / "reading_cnn_classifier.pt")
+	parser.add_argument("--model-path", type=Path, default=None)
 	parser.add_argument("--test-subject", default=None)
 	parser.add_argument("--epochs", type=int, default=20)
 	parser.add_argument("--batch-size", type=int, default=64)
 	parser.add_argument("--learning-rate", type=float, default=1e-3)
+	parser.add_argument("--model-type", choices=("cnn", "ann", "dnn"), default="cnn")
 	args = parser.parse_args()
+	if args.model_path is None:
+		args.model_path = ROOT / "models" / f"reading_{args.model_type}_classifier.pt"
 
 	with (ROOT / "configs" / "config.yaml").open(encoding="utf-8") as config_file:
 		config = yaml.safe_load(config_file)
@@ -32,11 +37,24 @@ def main():
 	fps = float(reading["sampling_fps"])
 	window_size = round(float(reading["window_seconds"]) * fps)
 	stride = max(1, round(float(reading["stride_seconds"]) * fps))
-	dataset = build_reading_dataset(args.features_csv, window_size, stride, fps)
+	dataset = build_reading_dataset(
+		args.features_csv, window_size, stride, fps,
+		max_gap_seconds=float(config["windowing"]["max_gap_seconds"]),
+		max_missing_fraction=float(config["windowing"]["max_missing_fraction"]),
+	)
 	subjects = sorted({item[2] for item in dataset})
 	test_subject = args.test_subject or subjects[-1]
 	train_data, val_data = split_by_subject(dataset, test_subject)
-	model = build_model(input_features=10, num_classes=2)
+	model_builders = {
+		"cnn": build_cnn_model,
+		"ann": build_ann_model,
+		"dnn": build_dnn_model,
+	}
+	model_builder = model_builders[args.model_type]
+	if args.model_type == "cnn":
+		model = model_builder(input_features=10, num_classes=2)
+	else:
+		model = model_builder(input_features=10, frames=window_size, num_classes=2)
 
 	# Inverse-frequency weights keep the smaller reading class visible to the loss.
 	counts = [sum(item[1] == label for item in train_data) for label in (0, 1)]
@@ -52,6 +70,7 @@ def main():
 		class_weights=class_weights,
 	)
 	save_model(model, args.model_path)
+	print(f"Model: {args.model_type.upper()}")
 	print(f"Window: {window_size} frames ({reading['window_seconds']} seconds at {fps:g} FPS)")
 	print(f"Held-out subject: {test_subject}")
 	print(f"Train windows: {len(train_data)}; validation windows: {len(val_data)}")

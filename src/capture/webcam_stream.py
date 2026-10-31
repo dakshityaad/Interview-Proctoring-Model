@@ -28,3 +28,15 @@ def read_video_frames(path):
 			yield frame
 	finally:
 		capture.release()
+
+
+def get_video_fps(path):
+	"""Return the recorded frame rate for a video, or fail clearly if absent."""
+	capture = cv2.VideoCapture(str(path))
+	try:
+		fps = float(capture.get(cv2.CAP_PROP_FPS))
+	finally:
+		capture.release()
+	if fps <= 0:
+		raise ValueError(f"Could not determine FPS for video: {path}")
+	return fps
