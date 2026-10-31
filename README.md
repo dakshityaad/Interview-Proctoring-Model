@@ -1,368 +1,265 @@
-# Interview Screen-Reading Detector
+# Interview Proctoring Model
 
-**Project version: 1.0.0 — Completed**
+**Version:** 1.0.0
 
-A complete Streamlit/CNN+LSTM interview behaviour monitoring application. The
-live webcam dashboard uses MediaPipe pitch, yaw, and gaze features and the
-trained `cnn_lstm_classifier_35epochs_SUBJECT_06.pt` checkpoint for three-class
-behaviour review.
+**Status:** Completed
 
-## Run the completed live dashboard
+**Release date:** 31 October 2026
 
-Use the project's Python 3.12 virtual environment from the repository root:
+An interview behaviour-monitoring project that extracts MediaPipe face features from recorded videos and live webcam footage, then uses trained temporal deep-learning models to classify:
+
+1. **Talking / Listening**
+2. **Looking down**
+3. **Reading**
+
+The project is an assistive review tool, not a surveillance or cheating-proof system. Predictions can be affected by lighting, camera quality, glasses, face occlusion, head movement, and personal gaze differences, and must receive human review.
+
+## Current Project Status
+
+The complete offline pipeline and live application are implemented:
+
+- Frame-level feature extraction from recorded videos.
+- Timestamp-based 7.5 FPS data standardization.
+- Subject-held-out dataset preparation and temporal windowing.
+- Three-class ANN, DNN, CNN, CNN+LSTM, and DNN+LSTM evaluation.
+- Binary reading-detection training and evaluation workflows.
+- MediaPipe live webcam feature extraction.
+- Live three-class CNN+LSTM inference with a 38-frame rolling buffer.
+- Streamlit webcam dashboard with prediction probabilities, history, durations, and configurable sustained-reading alerts.
+- Separate five-second reading-detector logic and score smoothing.
+
+The selected live model is the three-class **CNN+LSTM trained for 35 epochs and held out on SUBJECT_06**.
+
+## Final Live Application
+
+The Streamlit application is implemented in:
+
+- `app/streamlit_app.py` — dashboard layout, controls, theme, webcam UI, probability bars, timeline, durations, and reading alerts.
+- `app/video_processor.py` — MediaPipe extraction, 7.5 FPS sampling, rolling 38-frame buffer, valid-window checks, model loading, and inference.
+
+### Dashboard functions
+
+- Start and stop the browser webcam with the `streamlit-webrtc` START/STOP control.
+- Display the live camera feed with a compact camera indicator for detected or missing faces.
+- Refresh displayed metrics with the **Refresh metrics** button below the camera control.
+- Display the current behaviour and confidence.
+- Display probabilities for Talking / Listening, Looking down, and Reading.
+- Show recent prediction history and estimated detected durations.
+- Configure Reading alert confidence from `0.50` to `0.95`.
+- Configure consecutive Reading predictions; the default is 2.
+- Display a sustained Reading review alert when the configured conditions are met.
+- Reset safely when camera processing is interrupted or restarted.
+- Recover from missing faces without interpolating across long gaps.
+
+The probability colours are: green for Talking / Listening, and red for Looking down and Reading. The dashboard uses a black and neutral theme.
+
+## Live Inference Pipeline
+
+```text
+Browser webcam
+    -> streamlit-webrtc frame
+    -> MediaPipe Face Landmarks
+    -> pitch, yaw, horizontal gaze ratio
+    -> sample at 7.5 FPS
+    -> maintain rolling 38-frame window
+    -> validate finite feature coverage
+    -> CNN+LSTM inference
+    -> probability, prediction, history, and review alert
+```
+
+### Live input contract
+
+| Setting | Value |
+|---|---|
+| Window size | 38 frames |
+| Sampling rate | 7.5 FPS |
+| Approximate duration | 5 seconds |
+| Feature count | 3 |
+| Feature order | Pitch, yaw, horizontal gaze ratio |
+| Model input shape | `(1, 38, 3)` |
+| Output classes | Talking, Looking down, Reading |
+| Live checkpoint | `models/cnn_lstm_classifier_35epochs_SUBJECT_06.pt` |
+
+Short missing observations are represented by NaN values. A window is rejected when it contains more than 10% missing values, and live inference currently rejects any incomplete finite sequence rather than interpolating across missing frames.
+
+## Model Selection and Evaluation
+
+The final live architecture is the three-class CNN+LSTM. It was compared on the SUBJECT_06 held-out fold with the flat DNN and DNN+LSTM temporal baseline.
+
+| Model | Accuracy | Balanced Accuracy | Macro Precision | Macro Recall | Macro F1 | Macro ROC AUC | Log Loss |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| CNN+LSTM | 77.72% | 78.18% | 78.12% | 78.18% | 77.38% | 90.67% | 0.8542 |
+| Flat DNN | 72.81% | - | - | - | 72.43% | - | 0.8069 |
+| DNN+LSTM | 73.08% | - | - | - | 72.38% | - | 0.8099 |
+
+CNN+LSTM achieved the highest reported accuracy and macro F1 among the temporal comparison models, with stronger Reading recall than the other 35-epoch models. The single held-out-subject result is preliminary and should be repeated with leave-one-subject-out validation and multiple random seeds before broad deployment.
+
+The model implementation is in `src/model/cnn_lstm_model.py`. Training and evaluation scripts are available under `scripts/`, and detailed findings are recorded in `findings.md` and `context.md`.
+
+## Launch Instructions
+
+### Live Streamlit dashboard
+
+Run from the project root with the configured Python 3.12 environment:
 
 ```powershell
 D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe -m streamlit run app\streamlit_app.py
 ```
 
-Open `http://localhost:8501`, allow browser camera access, and use the webcam
-START/STOP control. Use **Refresh metrics** below the camera control to refresh
-the prediction view. Reading alerts are configurable and are review signals,
-not proof of misconduct.
+Open:
 
-A deep learning project to detect whether a candidate in an online interview is
-reading their answers off-screen (a proxy for cheating), using webcam-based
-gaze and head-pose tracking.
-
----
-
-## 1. Problem Statement
-
-Detect two behavioral signatures during a live interview:
-
-1. **Looking down** — sustained downward head/gaze, not necessarily reading.
-2. **Reading (cheating)** — a genuine reading rhythm: progressive small
-   left-to-right (or line-by-line) eye movements followed by a large return
-   sweep, repeated over time.
-
-Everything else (speaking, listening, natural gaze at the camera) is the
-**not cheating** baseline class.
-
-This is framed as a **3-class classification problem**, where classes 1 and
-2 are both cheating, at different severity/confidence levels:
-
-| Class | Description | Verdict |
-|---|---|---|
-| 0 | Not cheating — speaking / listening / natural gaze | Not cheating |
-| 1 | Looking down — possible phone use | Cheating (alert) |
-| 2 | Reading from screen — genuine reading pattern | Cheating (stronger alert) |
-
----
-
-## 2. Core Theory / Principles
-
-- **Head pose (pitch/yaw)** is estimated via `solvePnP`, using a generic 3D
-  face model matched against 2D facial landmarks (nose, chin, eye corners,
-  mouth corners). Robust to lighting and largely unaffected by glasses.
-- **Gaze ratio** is estimated from iris position relative to eye corners
-  (MediaPipe iris landmarks). More sensitive to glasses/glare than head pose.
-- **Static vs. periodic signal**: "looking down" is a *static/sustained*
-  deviation, detectable from short windows. "Reading" is a *periodic*
-  signature (sawtooth pattern in horizontal gaze position: small steps one
-  direction, then a big jump back) — this needs a **temporal window**, not a
-  single frame, to detect reliably.
-- **Why feature-based, not raw-pixel end-to-end**: MediaPipe FaceMesh is a
-  pretrained deep model used as a fixed feature extractor. Training a
-  classifier on its output features (`[pitch, yaw, gaze_ratio]` per frame)
-  needs far less data than training a CNN directly on raw video/eye-crop
-  images, which matters given the realistic data budget (4-5 subjects).
-- **Known confound**: note-taking on paper looks behaviorally similar to
-  reading off a screen (downward gaze). Not solved architecturally — handled
-  by making sure "looking down" training clips include non-reading downward
-  behavior as a contrast to genuine reading clips.
-- **Glasses**: degrade gaze_ratio quality (glare/occlusion) but not head
-  pose. Current scope: recording **without glasses**, noted as a stated
-  limitation rather than solved.
-- **No public dataset fits this task** — existing gaze/reading eye-tracking
-  datasets (GazeCapture, MPIIGaze, Provo Corpus, etc.) are either unlabeled
-  for this behavior or collected with lab-grade eye trackers, not consumer
-  webcams. Self-collected data is the realistic path.
-- **Audio is out of scope** — the task is purely visual (gaze/head pose);
-  audio-based hesitation analysis is a possible future direction, not part
-  of the current build.
-
----
-
-## 3. Data Collection Plan
-
-- **Subjects**: 4-5 people.
-- **Exactly 3 samples (videos) per subject — one per class, no more**:
-  1. **Explaining normally** — talking/answering as in a real interview
-     (baseline, class 0 — not cheating)
-  2. **Reading from screen** — genuine continuous reading while looking at
-     a screen/phone (class 2 — cheating, stronger alert)
-  3. **Looking down at phone** — downward gaze, deliberately *not* reading
-     continuously (class 1 — cheating, softer alert)
-- **Fixed sample budget**: with only 3 samples per subject (not multiple
-  takes per class), each video needs to be long enough on its own to
-  yield sufficient training windows after slicing — see length note below.
-  There is no redundancy per class per subject, so quality of each single
-  take matters more than with a multi-take plan.
-- **Length per video**: ~2-4 minutes each (longer than a large-subject-count
-  plan would need, to compensate for both fewer subjects and only one
-  sample per class, while still getting enough windows after slicing).
-- **Recording notes**:
-  - Avoid direct overhead light / backlighting (reduces iris-tracking glare).
-  - "Looking down at phone" should stay clearly distinct from "reading from
-    screen" — a downward stare without a sustained scan rhythm, vs.
-    genuinely reading real sentences continuously — since with only one
-    take per class, there's no second chance to fix an ambiguous sample.
-  - No glasses for this data collection pass (stated limitation, not solved).
-- **Train/test split**: hold out **one full subject** (all 3 of their
-  samples) for testing; train on the remaining subjects. Subject-level
-  split, not clip-level, to actually test generalization to a new person.
-
----
-
-## 4. Phases & Model Versions
-
-The project is delivered in two versions, matching Phase 1 and Phase 2 of
-the work:
-
-### Version 1 (Phase 1) — Primary model
-- **Model**: 1D-CNN over sliding windows of `[pitch, yaw, gaze_ratio]`.
-- **Goal**: working end-to-end pipeline — webcam → FaceMesh → CNN →
-  rolling alert UI. This is the main deliverable model.
-
-### Version 2 (Phase 2) — Comparison models
-Two additional classical deep learning models trained on the same windowed
-feature data (flattened), for a comparison/ablation study against the
-Version 1 CNN — kept intentionally simple, no recurrent/attention
-architectures:
-
-- **Model 2: DNN (Deep Neural Network)** — a fully-connected network with
-  several hidden layers (e.g. 3-4), taking a flattened window of
-  `[pitch, yaw, gaze_ratio]` values as input. Tests whether a deeper plain
-  network can learn the pattern without any convolution or sequence
-  structure.
-- **Model 3: ANN (shallow Artificial Neural Network)** — a fully-connected
-  network with just 1-2 hidden layers, same flattened input. The simplest
-  possible baseline — tests how much accuracy is gained by adding depth
-  (DNN) or local pattern detection (CNN) over this minimal model.
-
-**Comparison metrics across all 3 models**: per-class accuracy,
-precision/recall, a collapsed binary metric (cheating = class 1 or 2, vs.
-not cheating = class 0), parameter count, and training time.
-
----
-
-## 5. Pipeline / Workflow
-
-### Offline: data → trained model
-
-```
-Raw video (per subject, per class)
-        │
-        ▼
-MediaPipe FaceMesh (pretrained) — extract per-frame:
-   [pitch, yaw, gaze_ratio]
-        │
-        ▼
-Slice into overlapping windows (e.g. 30-60 frames, stride 5-10)
-        │
-        ▼
-Labeled dataset: (window of feature vectors, class label)
-        │
-        ▼
-Train models (Version 1: CNN. Version 2: + DNN, + ANN)
-        │
-        ▼
-Saved weights (models/*.pt)
+```text
+http://localhost:8501
 ```
 
-### Online: live webcam → web app
+Allow camera permission in the browser. Use the single webcam START/STOP control, then wait for enough valid 38-frame windows before expecting a prediction.
 
-```
-Browser (user's webcam)
-        │  (getUserMedia via streamlit-webrtc, HTTPS)
-        ▼
-Streamlit app (server-side)
-        │
-        ▼
-streamlit-webrtc VideoProcessor — runs PER FRAME:
-   ├─ MediaPipe FaceMesh → [pitch, yaw, gaze_ratio]
-   ├─ append to rolling window (kept as processor instance state,
-   │  NOT Streamlit script-rerun state)
-   ├─ once window is full → feed into trained model (CNN, or
-   │  selected Version 2 model: DNN / ANN) → [P(0), P(1), P(2)]
-   ├─ smooth over recent predictions (rolling_score.py)
-   └─ draw overlay (percentage + alert text) onto the frame
-        │
-        ▼
-Annotated video frame streamed back to browser
-        │
-        ▼
-Streamlit UI: live video panel + rolling score chart + alert banner
+### Offline feature extraction
+
+```powershell
+D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe scripts\run_extraction.py
 ```
 
----
+### Offline training
 
-## 6. Project Structure
-
-```
-reading-detector/
-│
-├── configs/
-│   └── config.yaml                # window size, stride, thresholds, paths,
-│                                   #   per-model hyperparameters — no
-│                                   #   hardcoded values in scripts
-│
-├── data/
-│   ├── raw/                       # raw recorded video clips, per subject/class
-│   │                              #   (git-ignored — not committed to the repo)
-│   ├── frames/                    # extracted frames (if needed for inspection)
-│   └── features.csv               # extracted [pitch, yaw, gaze_ratio, label, subject_id, window_id]
-│
-├── src/
-│   ├── __init__.py
-│   ├── capture/
-│   │   ├── __init__.py
-│   │   └── webcam_stream.py       # local/offline camera capture loop (used for data collection)
-│   ├── landmarks/
-│   │   ├── __init__.py
-│   │   ├── face_mesh.py           # MediaPipe FaceMesh wrapper
-│   │   ├── head_pose.py           # pitch/yaw estimation (solvePnP)
-│   │   └── gaze.py                # iris/gaze ratio estimation
-│   ├── features/
-│   │   ├── __init__.py
-│   │   └── extract_features.py    # video -> per-frame feature extraction
-│   ├── windowing/
-│   │   ├── __init__.py
-│   │   └── make_windows.py        # slice feature sequences into labeled windows
-│   ├── model/
-│   │   ├── __init__.py
-│   │   ├── dataset.py             # loads windows into train/val/test splits
-│   │   ├── cnn_model.py           # Version 1: 1D-CNN architecture (3-class softmax)
-│   │   ├── dnn_model.py           # Version 2: deeper fully-connected network (DNN)
-│   │   ├── ann_model.py           # Version 2: shallow fully-connected network (ANN)
-│   │   ├── train.py               # training loop (shared across all 3 models)
-│   │   └── infer.py               # loads trained weights, runs inference on a window
-│   └── scoring/
-│       ├── __init__.py
-│       └── rolling_score.py       # rolling window smoothing + alert logic
-│
-├── scripts/
-│   ├── run_extraction.py          # entry point: data/raw/ -> features.csv
-│   ├── run_training.py            # entry point: trains a chosen model (cnn/dnn/ann)
-│   └── run_evaluation.py          # entry point: evaluates a trained model on the
-│                                   #   held-out test subject, writes to results/
-│
-├── models/
-│   ├── cnn_classifier.pt          # Version 1 saved weights
-│   ├── dnn_classifier.pt          # Version 2 saved weights
-│   └── ann_classifier.pt          # Version 2 saved weights
-│
-├── results/
-│   ├── cnn/                       # confusion matrix, metrics, training curves
-│   ├── dnn/
-│   └── ann/
-│
-├── tests/
-│   ├── test_landmarks.py          # sanity checks on head_pose/gaze functions
-│   └── test_windowing.py          # sanity checks on window-slicing logic
-│
-├── notebooks/
-│   └── exploration.ipynb          # data checks, threshold/architecture experiments
-│
-├── app/
-│   ├── streamlit_app.py           # Streamlit entry point — page layout, sidebar, charts
-│   └── video_processor.py         # streamlit-webrtc VideoProcessor: per-frame
-│                                   #   FaceMesh -> window -> model -> overlay
-│
-├── .gitignore                     # excludes data/raw/, venv/, __pycache__/, etc.
-├── requirements.txt
-└── README.md                      # this file
+```powershell
+D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe scripts\run_training.py --model-type cnn_lstm --test-subject SUBJECT_06 --epochs 35
 ```
 
-**What changed from the earlier version, and why:**
-- **`configs/`** — centralizes window size, stride, alert thresholds, and
-  file paths in one `config.yaml` instead of hardcoded values scattered
-  across scripts, and makes running 3 different model configs cleaner.
-- **`scripts/`** — clear, runnable entry points, so "how do I actually run
-  this" doesn't require reading through `src/` to figure out.
-- **`results/`** — a dedicated home per model for confusion matrices,
-  metrics, and training curves, since the Phase 2 deliverable is
-  explicitly a 3-model comparison.
-- **`tests/`** — a few sanity checks (not a full test suite) to catch
-  breakage in the landmark/windowing logic early.
-- **`__init__.py` files** — turns `src/` into a proper importable package,
-  avoiding import path issues once scripts start importing across folders.
-- **`.gitignore`** — keeps raw video footage (identifiable footage of real
-  people) and environment files out of the committed repo.
+Supported training model types include `cnn`, `dnn`, `ann`, `cnn_lstm`, and `dnn_lstm`.
 
----
+### Model evaluation
 
-## 7. Model Spec
+```powershell
+D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe scripts\run_evaluation.py --help
+```
 
-### Version 1: CNN (primary model)
-- **Input**: window of shape `(30-60 frames, 3 features)` —
-  `[pitch, yaw, gaze_ratio]` per frame.
-- **Architecture**: 2-3 1D-conv layers (e.g. 16 → 32 → 64 filters, kernel
-  size 3-5) → global pooling → 1-2 dense layers → 3-way softmax output.
-- **Parameter count**: small, likely well under 100K params.
+### Five-second binary reading detector
 
-### Version 2: DNN (comparison model)
-- **Input**: same window, **flattened** into a single vector (e.g. 60
-  frames × 3 features = 180 values).
-- **Architecture**: fully-connected network, 3-4 hidden layers (e.g.
-  128 → 64 → 32 → 16), ReLU activations, dropout between layers → 3-way
-  softmax output.
+```powershell
+D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe scripts\run_reading_training.py --model-type cnn --test-subject SUBJECT_06 --epochs 35
+```
 
-### Version 2: ANN (simplest baseline)
-- **Input**: same flattened window vector as the DNN.
-- **Architecture**: fully-connected network, 1-2 hidden layers (e.g.
-  64 → 16), ReLU activation → 3-way softmax output.
+## Project Structure
 
-**Shared across all three**: cross-entropy loss, Adam optimizer,
-subject-level train/val/test split, class weighting to counter the
-"not cheating" class dominating raw recorded time.
+```text
+app/
+  streamlit_app.py       Streamlit dashboard and browser webcam UI
+  video_processor.py     Live feature extraction and CNN+LSTM inference
 
-**Training compute**: CPU is sufficient for all three; no GPU strictly
-required given the small input dimensionality and dataset size.
+configs/
+  config.yaml            Dataset, windowing, feature, and alert settings
 
----
+data/
+  raw/                   Raw source videos, kept out of Git when large/private
+  features*.csv          Extracted and timestamp-standardized frame features
 
-## 8. Requirements / Libraries
+models/
+  cnn_lstm_classifier_35epochs_SUBJECT_06.pt  Selected live checkpoint
+  *.pt                    Additional trained comparison checkpoints
 
-**Modeling / data (offline)**
-- `opencv-python`, `mediapipe`, `numpy`, `pandas`, `scikit-learn`
-- `torch` or `tensorflow` (pick one) — CNN, DNN, ANN
-- `scipy` — optional, for any additional signal-processing features you
-  choose to engineer
-- `matplotlib`/`seaborn`, `tqdm` — optional, for plots and progress bars
+scripts/
+  run_extraction.py      Build frame-level feature CSV
+  add_video_timestamps.py Standardize source observations to timestamps/FPS
+  run_training.py        Train three-class models
+  run_reading_training.py Train binary reading models
+  run_evaluation.py      Evaluate saved checkpoints
+  run_eda.py             Generate exploratory analysis and findings
 
-**Web deployment**
-- `streamlit` — app framework / page layout
-- `streamlit-webrtc` — browser webcam capture + server-side per-frame
-  processing, over HTTPS
+src/
+  capture/               Webcam and recorded-video frame generators
+  features/              Feature extraction and motion/resampling helpers
+  landmarks/             MediaPipe FaceMesh, head pose, and gaze calculations
+  model/                 ANN, CNN, DNN, CNN+LSTM, DNN+LSTM, and detector models
+  scoring/               Rolling prediction and reading-alert logic
+  windowing/             Sequence construction for temporal models
 
-**Hardware**
-- CPU is sufficient for training and for live inference; GPU only speeds
-  things up, not required at this data/model scale.
-- Standard webcam, ideally 15-20+ fps so the reading-saccade pattern isn't
-  under-sampled.
+results/                 Training and evaluation output
+notebooks/               Exploration notebooks
+findings.md              Data, model, and evaluation findings
+context.md               Complete project history and release context
+HOWTO.md                 Detailed offline and live usage guide
+```
 
-## 9. Resources / References (for background reading)
+## Core Source Functions
 
-- MediaPipe Face Mesh (landmark + iris tracking model used as the fixed
-  feature extractor).
-- `cv2.solvePnP` — head pose estimation from 2D-3D landmark correspondence.
-- Background reading on reading eye-movement patterns (saccades, fixations,
-  return sweeps) — useful for understanding *why* the saccade signature
-  looks the way it does, even though the referenced lab datasets (Provo
-  Corpus, GECO, Dundee Corpus) aren't directly usable as training data here.
+### Live application
 
----
+- `LiveInferenceProcessor.process_frame()` extracts and samples features, updates the rolling sequence, and runs inference.
+- `LiveInferenceProcessor._predict_locked()` validates the current window and executes the CNN+LSTM model.
+- `LiveInferenceProcessor.snapshot()` returns the latest prediction and buffer count safely across threads.
+- `LiveInferenceProcessor.history_snapshot()` returns prediction history for the dashboard.
+- `LiveInferenceProcessor.reset()` clears sequence and prediction state.
+- `WebcamProcessor.recv()` converts browser frames, processes them, and returns the webcam frame to WebRTC.
 
-## 10. Open Items / Stated Limitations
+### Feature extraction and landmarks
 
-- No glasses-wearing subjects in this data collection pass — flagged as a
-  known limitation, not solved.
-- Note-taking vs. screen-reading confound is only partially addressed via
-  the "looking down" class contrast, not fully resolved.
-- No audio signal used — visual-only pipeline by design.
-- Currently scoped for 4-5 subjects; more subjects/sessions would improve
-  generalization if time allows later.
-- Phase 2 (Version 2) models — DNN and ANN — are planned per instructor
-  requirement, not yet built. Kept as classical fully-connected
-  architectures (no recurrent/attention models) to keep scope manageable.
+- `run_extraction.py` converts raw recordings into labelled frame-level features.
+- `head_pose.get_head_pose()` calculates pitch and yaw.
+- `gaze.get_gaze_ratio()` calculates horizontal and vertical eye gaze ratios.
+- `face_mesh.get_landmarks()` processes a frame and returns facial landmarks when a face is detected.
+
+### Training and models
+
+- `build_model()` constructs the three-class CNN+LSTM architecture.
+- `CNNLSTMClassifier.forward()` converts `(batch, frames, features)` into class probabilities.
+- Training scripts save subject-held-out checkpoints to `models/` and print training/validation results.
+- Evaluation scripts report accuracy, class metrics, confusion matrices, and supported probability metrics.
+
+## Dependencies
+
+Primary dependencies include:
+
+- Python 3.12
+- PyTorch
+- OpenCV
+- MediaPipe
+- NumPy and Pandas
+- Streamlit and streamlit-webrtc
+- Scikit-learn
+- Matplotlib and Seaborn
+- PyAV
+
+Install the project environment from the repository root:
+
+```powershell
+D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+## Tests
+
+Run the focused unit tests:
+
+```powershell
+D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe -m unittest tests.test_gaze tests.test_landmarks tests.test_windowing -v
+```
+
+Also compile the application modules before release:
+
+```powershell
+D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe -m compileall -q app src scripts
+```
+
+## Known Limitations
+
+- The primary model result is based on one held-out subject and is not a definitive generalization benchmark.
+- No calibrated live probability artifact has been added; confidence should not be interpreted as cheating probability.
+- Talking and Reading remain confused in the reported single-fold evaluation.
+- Glasses, glare, lighting, camera angle, occlusion, and partial face detection affect feature quality.
+- Lack of interpolation across long gaps prevents false continuity, but may reduce live coverage.
+- Reading and downward gaze can overlap behaviorally and are mutually exclusive labels in the evaluated three-class dataset.
+- The output indicates visual behaviour patterns only. It does not establish intent, academic dishonesty, or misconduct.
+
+## Recommended Future Work
+
+1. Validate across all subjects and repeated seeds.
+2. Calibrate class probabilities for live confidence thresholds.
+3. Improve Talking/Reading separation with additional balanced data.
+4. Separate a Reading review signal from a definitive misconduct decision.
+5. Add recording consent, privacy controls, and automated data deletion.
+6. Add deployment authentication and secure camera-session handling.
+7. Add long-running telemetry for false-alert rate and detection delay where ethically and legally appropriate.
+
+## License and Responsible Use
+
+Obtain informed consent before recording or analysing interview candidates. Follow applicable employment, privacy, biometric-data, accessibility, and anti-discrimination requirements. Human decision-makers should review context and evidence rather than use model output as an automatic adverse-employment signal.
