@@ -325,10 +325,33 @@ For the reading detector, the most important future metrics are:
 
 - The current feature CSV does not persist the source video FPS. The five-second detector therefore assumes the configured 15 FPS sampling rate.
 - The dataset has only three subjects and SUBJECT_01 has no class 2 recording.
-- The live Streamlit files are not wired yet: `app/video_processor.py` and `app/streamlit_app.py` are currently empty.
+- The live Streamlit application is implemented in `app/video_processor.py` and `app/streamlit_app.py`, and uses the completed CNN+LSTM checkpoint.
 - The model should not be treated as proof of cheating. It detects visual behavior patterns and should be used as an alert or review signal.
 
-## 12. Recommended run order
+## 12. Run the completed live webcam dashboard
+
+Start the application from the project root using the project's Python 3.12 environment:
+
+```powershell
+D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe -m streamlit run app\streamlit_app.py
+```
+
+Then open:
+
+```text
+http://localhost:8501
+```
+
+Allow camera access in the browser and use the single camera START/STOP control. The dashboard processes MediaPipe pitch, yaw, and gaze ratio features into 38-frame CNN+LSTM sequences. Use **Refresh metrics** below the camera control to update the displayed prediction data.
+
+The sidebar controls:
+
+- Reading alert confidence threshold.
+- Consecutive Reading predictions required before an alert (default: 2).
+
+Prediction bars use green for Talking / Listening and red for Looking down and Reading. Sustained Reading alerts remain assistive review signals and must not be interpreted as proof of misconduct. The live dashboard loads the existing checkpoint and does not retrain or overwrite it.
+
+## 13. Recommended run order
 
 For a fresh run, use this order:
 

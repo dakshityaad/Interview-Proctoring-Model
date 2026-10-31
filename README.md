@@ -1,5 +1,25 @@
 # Interview Screen-Reading Detector
 
+**Project version: 1.0.0 — Completed**
+
+A complete Streamlit/CNN+LSTM interview behaviour monitoring application. The
+live webcam dashboard uses MediaPipe pitch, yaw, and gaze features and the
+trained `cnn_lstm_classifier_35epochs_SUBJECT_06.pt` checkpoint for three-class
+behaviour review.
+
+## Run the completed live dashboard
+
+Use the project's Python 3.12 virtual environment from the repository root:
+
+```powershell
+D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe -m streamlit run app\streamlit_app.py
+```
+
+Open `http://localhost:8501`, allow browser camera access, and use the webcam
+START/STOP control. Use **Refresh metrics** below the camera control to refresh
+the prediction view. Reading alerts are configurable and are review signals,
+not proof of misconduct.
+
 A deep learning project to detect whether a candidate in an online interview is
 reading their answers off-screen (a proxy for cheating), using webcam-based
 gaze and head-pose tracking.

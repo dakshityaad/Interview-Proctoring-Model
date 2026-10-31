@@ -669,3 +669,107 @@ or regularization experiments.
 and subject-held-out evaluation protocol.
 4. Treat the current ranking as preliminary evidence from one held-out
 subject until it is confirmed across all subjects and repeated runs.
+
+## Version 1.0.0 — Project Completed
+
+**Status:** Completed and released on 2026-10-31. Version 1.0.0 contains the
+complete offline training/evaluation pipeline and the live Streamlit webcam
+application selected around the three-class CNN+LSTM architecture.
+
+### Final application
+
+- Added `app/streamlit_app.py`, a dark, responsive Streamlit dashboard for
+  live interview behaviour monitoring.
+- Added `app/video_processor.py`, the reusable MediaPipe feature extraction,
+  rolling-window inference, prediction history, and alert pipeline.
+- Reused the established MediaPipe calculations for pitch, yaw, and horizontal
+  gaze ratio without retraining or modifying the selected CNN+LSTM model.
+- Maintains the validated runtime contract: 38 time steps, three features in
+  pitch/yaw/gaze order, approximately 7.5 FPS, and model input shape
+  `(1, 38, 3)`.
+- Uses the subject-held-out checkpoint
+  `models/cnn_lstm_classifier_35epochs_SUBJECT_06.pt`.
+- Provides browser webcam capture through `streamlit-webrtc` with one START/STOP
+  control, safe missing-face handling, and no interpolation across long gaps.
+- Displays the current behaviour, confidence, class probabilities, prediction
+  timeline, behaviour durations, and sustained-reading alerts.
+- Maps the model's `Talking` class to the user-facing label
+  `Talking / Listening`.
+- Uses green for Talking / Listening, red for Looking down and Reading, and a
+  black/neutral dashboard theme without blue probability styling.
+- Added a Refresh metrics control directly below the camera control.
+- Reading alerts require two consecutive predictions at or above the
+  configurable threshold by default. Alerts are review signals, not proof of
+  misconduct.
+
+### Dashboard controls
+
+- Camera: browser WebRTC single START/STOP control.
+- Metrics: Refresh metrics button below the camera control.
+- Reading confidence threshold: configurable from the sidebar.
+- Consecutive Reading predictions: configurable from the sidebar; defaults to
+  2.
+- Face status and complete-sequence progress are handled by the processor.
+
+### Launch instructions
+
+From the project root in PowerShell:
+
+```powershell
+D:\Interview-Proctoring-Model\.venv312\Scripts\python.exe -m streamlit run app\streamlit_app.py
+```
+
+Open `http://localhost:8501` in a browser. Local webcam access must be permitted
+for the Streamlit origin. This dashboard does not retrain or overwrite the
+selected checkpoint.
+
+### Final model selection
+
+The three-class CNN+LSTM remains the final forward model for live inference.
+On the held-out SUBJECT_06 evaluation:
+
+- Accuracy: 77.72%
+- Balanced accuracy: 78.18%
+- Macro precision: 78.12%
+- Macro recall: 78.18%
+- Macro F1: 77.38%
+- Macro ROC AUC: 90.67%
+- Cross-entropy log loss: 0.8542
+
+This result was compared against the flat DNN and DNN+LSTM temporal baselines.
+CNN+LSTM ranked first on the temporal-comparison accuracy and F1 measures. It
+is a single held-out-subject estimate and still requires broader
+leave-one-subject-out evaluation and repeated seeds before production-level
+performance claims.
+
+### Validation completed
+
+- Model architecture and checkpoint loading were validated.
+- The live processor returns the expected three-class probability output.
+- Python application files compile successfully.
+- Feature order and live temporal input shape are fixed by the processor.
+- Missing-face, invalid-window, and sequence-reset behavior was implemented.
+- Streamlit dashboard rendering and browser webcam processing were tested with
+  the installed WebRTC component.
+- One camera control was retained; duplicate custom Start/Stop buttons were
+  removed.
+- Dashboard probability colours, camera size, sidebar width, Talking / Listening
+  label, black theme, and metrics refresh placement were implemented.
+
+### Repository and release notes
+
+- All application code and final project documentation are maintained in
+  GitHub repository `dakshityaad/Interview-Proctoring-Model`.
+- Version 1.0.0 represents completion of the requested live webcam application;
+  it does not represent a clinically validated or surveillance-grade proof of
+  cheating.
+- Existing training results, trained checkpoint files, and evaluation outputs
+  are preserved and were not regenerated or overwritten by live-app changes.
+
+### Known limitations
+
+- One held-out subject is not sufficient for a definitive cross-subject generalization claim.
+- No probability calibration artifact has yet been introduced into live inference.
+- CNN+LSTM probabilities can still confuse Talking and Reading in the reported single-fold result.
+- Webcam quality, lighting, glasses, occlusion, browser permissions, and face detection affect live reliability.
+- Predictions are assistive review signals only and require human review and appropriate interview policy.
